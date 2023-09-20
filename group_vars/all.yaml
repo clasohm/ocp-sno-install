@@ -1,0 +1,14 @@
+ocp_version: stable-4.13
+arch: x86_64
+
+vm_disks:
+  - name: os
+    size: 120G
+  - name: pv
+    size: 100G
+
+oc: /usr/local/bin/oc
+openshift_install: /usr/local/bin/openshift-install
+
+tmp_prefix: /tmp/ocp-sno-install
+vm_images: /var/lib/libvirt/images

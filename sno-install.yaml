@@ -1,0 +1,183 @@
+- name: Install Single Node OpenShift cluster
+  hosts: hypervisors
+  become: false
+  environment:
+    K8S_AUTH_KUBECONFIG: "{{ lookup('env', 'HOME') }}/.kube/{{ cluster_name }}-config"
+  tasks:
+    - name: Get VMs
+      community.libvirt.virt:
+        command: list_vms
+      become: true
+      register: existing_vms
+      changed_when: false
+
+    - name: Check if VM already exists
+      ansible.builtin.assert:
+        that: cluster_name not in existing_vms.list_vms
+        fail_msg: VM with name {{ cluster_name }} already exists. Delete it before running this playbook.
+
+    - name: Create installation directory
+      ansible.builtin.file:
+        path: "{{ tmp_prefix }}/{{ cluster_name }}"
+        state: directory
+        mode: "700"
+
+    - name: Create install-config.yaml
+      ansible.builtin.template:
+        src: install-config.yaml.j2
+        dest: "{{ tmp_prefix }}/{{ cluster_name }}/install-config.yaml"
+        mode: "600"
+
+    - name: Download OCP client
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{ ocp_version }}/openshift-client-linux.tar.gz
+        dest: "{{ oc | dirname }}"
+        include:
+          - oc
+        creates: "{{ oc }}"
+      become: true
+
+    - name: Download OCP installer
+      ansible.builtin.unarchive:
+        remote_src: true
+        src: https://mirror.openshift.com/pub/openshift-v4/clients/ocp/{{ ocp_version }}/openshift-install-linux.tar.gz
+        dest: "{{ openshift_install | dirname }}"
+        include:
+          - openshift-install
+        creates: "{{ openshift_install }}"
+      become: true
+
+    - name: Get RHCOS stream
+      ansible.builtin.command: "{{ openshift_install }} coreos print-stream-json"
+      changed_when: false
+      register: install_stream
+
+    - name: Download RHCOS ISO
+      ansible.builtin.get_url:
+        url: "{{ (install_stream.stdout | from_json).architectures[arch].artifacts.metal.formats.iso.disk.location }}"
+        dest: "{{ tmp_prefix }}/rhcos-live.iso"
+        mode: "644"
+
+    - name: Create ignition config
+      ansible.builtin.command:
+        cmd: openshift-install --dir={{ tmp_prefix }}/{{ cluster_name }} create single-node-ignition-config
+        creates: "{{ tmp_prefix }}/{{ cluster_name }}/bootstrap-in-place-for-live-iso.ign"
+
+    - name: Fix permissions for rhcos-live.iso
+      ansible.builtin.file:
+        path: "{{ tmp_prefix }}/rhcos-live.iso"
+        owner: "{{ ansible_user_id }}"
+      become: true
+
+    - name: Embed ignition data in ISO
+      ansible.builtin.command: |
+        podman run \
+          --privileged \
+          --pull always \
+          --rm \
+          -v /dev:/dev \
+          -v /run/udev:/run/udev \
+          -v {{ tmp_prefix }}:/data \
+          -w /data quay.io/coreos/coreos-installer:release \
+          iso ignition embed \
+          -fi {{ cluster_name }}/bootstrap-in-place-for-live-iso.ign \
+          rhcos-live.iso
+      changed_when: true
+
+    - name: Copy ISO file to libvirt directory
+      ansible.builtin.copy:
+        src: "{{ tmp_prefix }}/rhcos-live.iso"
+        remote_src: true
+        dest: "{{ vm_images }}/rhcos-live.iso"
+        owner: qemu
+        group: qemu
+        mode: "600"
+      become: true
+
+    - name: Create VM disks
+      ansible.builtin.command:
+        cmd: qemu-img create -f qcow2 {{ vm_images }}/{{ cluster_name }}-{{ item.name }}.qcow2 {{ item.size }}
+        creates: "{{ vm_images }}/{{ cluster_name }}-{{ item.name }}.qcow2"
+      loop: "{{ vm_disks }}"
+      become: true
+
+    - name: Define VM
+      community.libvirt.virt:
+        command: define
+        xml: "{{ lookup('template', 'vm.xml.j2') }}"
+      become: true
+
+    - name: Ensure VM is started
+      community.libvirt.virt:
+        name: "{{ cluster_name }}"
+        state: running
+      become: true
+      register: vm_start_results
+      until: vm_start_results is success
+      retries: 12
+      delay: 5
+
+    - name: Get VM IP address
+      ansible.builtin.shell: |
+        set -o pipefail
+        virsh guestinfo --interface {{ cluster_name }} | awk '/if.1.addr.0.addr/ { print $3; }'
+      changed_when: false
+      register: vm_ip
+      until: vm_ip.stdout != ""
+      retries: 12
+      delay: 5
+      become: true
+
+    - name: Set cluster_domain
+      ansible.builtin.set_fact:
+        cluster_domain: "{{ cluster_name }}.{{ base_domain }}"
+
+    - name: Add entry in /etc/hosts
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        line: >
+          {{ vm_ip.stdout }}
+          {{ cluster_name }}-node1.{{ cluster_domain }}
+          api.{{ cluster_domain }}
+          api-int.{{ cluster_domain }}
+          console-openshift-console.apps.{{ cluster_domain }}
+          oauth-openshift.apps.{{ cluster_domain }}
+          canary-openshift-ingress-canary.apps.{{ cluster_domain }}
+        search_string: api.{{ cluster_domain }}
+      become: true
+
+    - name: Show installation progress command
+      ansible.builtin.debug:
+        msg:
+          - Run the following command in another terminal to watch the installation progress:
+          - openshift-install --dir={{ tmp_prefix }}/{{ cluster_name }} wait-for install-complete
+
+    - name: Wait for OpenShift installation to complete
+      ansible.builtin.command: openshift-install --dir={{ tmp_prefix }}/{{ cluster_name }} wait-for install-complete
+      changed_when: false
+      register: install_wait
+      until: install_wait.rc == 0
+      retries: 5
+      delay: 60
+
+    - name: Copy kubeconfig
+      ansible.builtin.copy:
+        src: "{{ tmp_prefix }}/{{ cluster_name }}/auth/kubeconfig"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/{{ cluster_name }}-config"
+        mode: "600"
+
+    - name: Copy kubeadmin-password
+      ansible.builtin.copy:
+        src: "{{ tmp_prefix }}/{{ cluster_name }}/auth/kubeadmin-password"
+        dest: "{{ lookup('env', 'HOME') }}/.kube/{{ cluster_name }}-kubeadmin-password"
+        mode: "600"
+
+    - name: Check Kubernetes connection
+      kubernetes.core.k8s_info:
+        kind: Node
+      register: nodes
+
+# TODO: remove VM CDROM drive
+# TODO: change VM CPU count to 8
+# TODO: configure LVM storage operator
