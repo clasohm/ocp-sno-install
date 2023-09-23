@@ -16,6 +16,18 @@
         that: cluster_name not in existing_vms.list_vms
         fail_msg: VM with name {{ cluster_name }} already exists. Delete it before running this playbook.
 
+    - name: Set cluster_domain
+      ansible.builtin.set_fact:
+        cluster_domain: "{{ cluster_name }}.{{ base_domain }}"
+
+    - name: Remove previous /etc/hosts entry
+      ansible.builtin.lineinfile:
+        path: /etc/hosts
+        state: absent
+        search_string: api.{{ cluster_domain }}
+      become: true
+      notify: Clear dnsmasq cache
+
     - name: Create installation directory
       ansible.builtin.file:
         path: "{{ tmp_prefix }}/{{ cluster_name }}"
@@ -59,10 +71,12 @@
         dest: "{{ tmp_prefix }}/rhcos-live.iso"
         mode: "644"
 
+    # The ignition config contains certificates that expire after a short time.
+    # It needs to be recreated for every installation.
     - name: Create ignition config
       ansible.builtin.command:
         cmd: openshift-install --dir={{ tmp_prefix }}/{{ cluster_name }} create single-node-ignition-config
-        creates: "{{ tmp_prefix }}/{{ cluster_name }}/bootstrap-in-place-for-live-iso.ign"
+      changed_when: true
 
     - name: Fix permissions for rhcos-live.iso
       ansible.builtin.file:
@@ -108,7 +122,7 @@
         xml: "{{ lookup('template', 'vm.xml.j2') }}"
       become: true
 
-    - name: Ensure VM is started
+    - name: Start VM
       community.libvirt.virt:
         name: "{{ cluster_name }}"
         state: running
@@ -129,9 +143,9 @@
       delay: 5
       become: true
 
-    - name: Set cluster_domain
-      ansible.builtin.set_fact:
-        cluster_domain: "{{ cluster_name }}.{{ base_domain }}"
+    - name: Display VM IP address
+      ansible.builtin.debug:
+        msg: "VM IP address: {{ vm_ip.stdout }}"
 
     - name: Add entry in /etc/hosts
       ansible.builtin.lineinfile:
@@ -146,6 +160,10 @@
           canary-openshift-ingress-canary.apps.{{ cluster_domain }}
         search_string: api.{{ cluster_domain }}
       become: true
+      notify: Clear dnsmasq cache
+
+    - name: Run any pending handlers
+      ansible.builtin.meta: flush_handlers
 
     - name: Show installation progress command
       ansible.builtin.debug:
@@ -177,6 +195,12 @@
       kubernetes.core.k8s_info:
         kind: Node
       register: nodes
+
+  handlers:
+    - name: Clear dnsmasq cache
+      ansible.builtin.command: pkill -HUP dnsmasq
+      become: true
+      changed_when: true
 
 # TODO: remove VM CDROM drive
 # TODO: change VM CPU count to 8
