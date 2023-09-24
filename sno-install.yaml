@@ -28,6 +28,11 @@
       become: true
       notify: Clear dnsmasq cache
 
+    - name: Delete previous installation directory
+      ansible.builtin.file:
+        path: "{{ tmp_prefix }}/{{ cluster_name }}"
+        state: absent
+
     - name: Create installation directory
       ansible.builtin.file:
         path: "{{ tmp_prefix }}/{{ cluster_name }}"
@@ -71,12 +76,10 @@
         dest: "{{ tmp_prefix }}/rhcos-live.iso"
         mode: "644"
 
-    # The ignition config contains certificates that expire after a short time.
-    # It needs to be recreated for every installation.
     - name: Create ignition config
       ansible.builtin.command:
         cmd: openshift-install --dir={{ tmp_prefix }}/{{ cluster_name }} create single-node-ignition-config
-      changed_when: true
+        creates: "{{ tmp_prefix }}/{{ cluster_name }}/bootstrap-in-place-for-live-iso.ign"
 
     - name: Fix permissions for rhcos-live.iso
       ansible.builtin.file:
@@ -182,12 +185,14 @@
     - name: Copy kubeconfig
       ansible.builtin.copy:
         src: "{{ tmp_prefix }}/{{ cluster_name }}/auth/kubeconfig"
+        remote_src: true
         dest: "{{ lookup('env', 'HOME') }}/.kube/{{ cluster_name }}-config"
         mode: "600"
 
     - name: Copy kubeadmin-password
       ansible.builtin.copy:
         src: "{{ tmp_prefix }}/{{ cluster_name }}/auth/kubeadmin-password"
+        remote_src: true
         dest: "{{ lookup('env', 'HOME') }}/.kube/{{ cluster_name }}-kubeadmin-password"
         mode: "600"
 
