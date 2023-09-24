@@ -1,0 +1,29 @@
+# code: language=ansible
+
+- name: Install LVM Storage operator
+  kubernetes.core.k8s:
+    resource_definition: "{{ lookup('file', 'lvm-storage-operator.yaml') }}"
+
+- name: Wait for LVM Storage operator to be installed
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: openshift-storage
+  register: csv
+  until: csv.resources[0].status.phase is defined and csv.resources[0].status.phase == 'Succeeded'
+  retries: 12
+  delay: 5
+
+- name: Create LVMCluster
+  kubernetes.core.k8s:
+    resource_definition: "{{ lookup('file', 'lvm-storage-instance.yaml') }}"
+
+- name: Wait for LVMCluster to be deployed
+  kubernetes.core.k8s_info:
+    api_version: lvm.topolvm.io/v1alpha1
+    kind: LVMCluster
+    namespace: openshift-storage
+  register: lvmcluster
+  until: lvmcluster.resources[0].status.state is defined and lvmcluster.resources[0].status.state == 'Ready'
+  retries: 12
+  delay: 5

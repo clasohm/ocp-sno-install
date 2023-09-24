@@ -201,6 +201,9 @@
         kind: Node
       register: nodes
 
+    - name: Install LVM Storage operator
+      ansible.builtin.import_tasks: tasks/lvm-storage.yaml
+
   handlers:
     - name: Clear dnsmasq cache
       ansible.builtin.command: pkill -HUP dnsmasq
@@ -209,4 +212,3 @@
 
 # TODO: remove VM CDROM drive
 # TODO: change VM CPU count to 8
-# TODO: configure LVM storage operator
