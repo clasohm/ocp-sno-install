@@ -12,7 +12,7 @@
   register: csv
   until: csv.resources[0].status.phase is defined and csv.resources[0].status.phase == 'Succeeded'
   retries: 12
-  delay: 5
+  delay: 10
 
 - name: Create LVMCluster
   kubernetes.core.k8s:
@@ -26,4 +26,4 @@
   register: lvmcluster
   until: lvmcluster.resources[0].status.state is defined and lvmcluster.resources[0].status.state == 'Ready'
   retries: 12
-  delay: 5
+  delay: 10
