@@ -112,28 +112,21 @@
         mode: "600"
       become: true
 
-    - name: Create VM disks
-      ansible.builtin.command:
-        cmd: qemu-img create -f qcow2 {{ vm_images }}/{{ cluster_name }}-{{ item.name }}.qcow2 {{ item.size }}
-        creates: "{{ vm_images }}/{{ cluster_name }}-{{ item.name }}.qcow2"
-      loop: "{{ vm_disks }}"
+    - name: Create VM
+      ansible.builtin.command: |
+        virt-install \
+          -n {{ cluster_name }} \
+          --memory 16384 \
+          --vcpus 9 \
+          --disk size=120 \
+          --disk size=100 \
+          --cdrom {{ vm_images }}/rhcos-live.iso \
+          --os-variant rhel8.9 \
+          --boot hd,cdrom \
+          --install no_install=yes \
+          --noautoconsole
+      changed_when: true
       become: true
-
-    - name: Define VM
-      community.libvirt.virt:
-        command: define
-        xml: "{{ lookup('template', 'vm.xml.j2') }}"
-      become: true
-
-    - name: Start VM
-      community.libvirt.virt:
-        name: "{{ cluster_name }}"
-        state: running
-      become: true
-      register: vm_start_results
-      until: vm_start_results is success
-      retries: 12
-      delay: 5
 
     - name: Get VM IP address
       ansible.builtin.shell: |

@@ -2,4 +2,5 @@
 
 dnf install -y \
   python3-kubernetes \
-  python3-libvirt
+  python3-libvirt \
+  virt-install
