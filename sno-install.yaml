@@ -128,13 +128,13 @@
       changed_when: true
       become: true
 
-    - name: Get VM IP address
+    - name: Get VM IPv4 address
       ansible.builtin.shell: |
         set -o pipefail
         virsh guestinfo --interface {{ cluster_name }} | awk '/if.1.addr.0.addr/ { print $3; }'
       changed_when: false
       register: vm_ip
-      until: vm_ip.stdout != ""
+      until: vm_ip.stdout is regex('^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')
       retries: 12
       delay: 5
       become: true
