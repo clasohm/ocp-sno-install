@@ -154,6 +154,7 @@
           console-openshift-console.apps.{{ cluster_domain }}
           oauth-openshift.apps.{{ cluster_domain }}
           canary-openshift-ingress-canary.apps.{{ cluster_domain }}
+          openshift-gitops-server-openshift-gitops.apps.{{ cluster_domain }}
         search_string: api.{{ cluster_domain }}
       become: true
       notify: Clear dnsmasq cache
@@ -196,6 +197,10 @@
 
     - name: Install LVM Storage operator
       ansible.builtin.import_tasks: tasks/lvm-storage.yaml
+
+    - name: Install GitOps operator
+      ansible.builtin.import_tasks: tasks/gitops.yaml
+      tags: gitops
 
   handlers:
     - name: Clear dnsmasq cache

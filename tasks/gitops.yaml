@@ -1,0 +1,31 @@
+# code: language=ansible
+
+- name: Install LVM Storage operator
+  kubernetes.core.k8s:
+    resource_definition: "{{ lookup('file', 'gitops-operator.yaml') }}"
+
+- name: Wait for GitOps operator to be installed
+  kubernetes.core.k8s_info:
+    api_version: operators.coreos.com/v1alpha1
+    kind: ClusterServiceVersion
+    namespace: openshift-operators
+    label_selectors:
+      - operators.coreos.com/openshift-gitops-operator.openshift-operators = ''
+  register: csv
+  until: csv.resources[0].status.phase is defined and csv.resources[0].status.phase == 'Succeeded'
+  retries: 12
+  delay: 10
+
+- name: Create ArgoCD instance
+  kubernetes.core.k8s:
+    resource_definition: "{{ lookup('file', 'gitops-instance.yaml') }}"
+
+- name: Wait for ArgoCD to be deployed
+  kubernetes.core.k8s_info:
+    api_version: lvm.topolvm.io/v1alpha1
+    kind: ArgoCD
+    namespace: openshift-gitops
+  register: argocd
+  until: argocd.resources[0].status.phase is defined and argocd.resources[0].status.phase == 'Available'
+  retries: 12
+  delay: 10
