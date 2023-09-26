@@ -14,7 +14,7 @@
   retries: 12
   delay: 10
 
-- name: Create LVMCluster
+- name: Create LVMCluster instance
   kubernetes.core.k8s:
     resource_definition: "{{ lookup('file', 'lvm-storage-instance.yaml') }}"
 
