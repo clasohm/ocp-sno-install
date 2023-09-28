@@ -1,0 +1,5 @@
+# code: language=ansible
+
+- name: Install defrag-etcd CronJob
+  kubernetes.core.k8s:
+    resource_definition: "{{ lookup('file', 'files/defrag-etcd.yaml') }}"

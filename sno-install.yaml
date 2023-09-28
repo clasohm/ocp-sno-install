@@ -195,6 +195,9 @@
         kind: Node
       register: nodes
 
+    - name: Install defrag-etcd CronJob
+      ansible.builtin.import_tasks: tasks/defrag-etcd.yaml
+
     - name: Install LVM Storage operator
       ansible.builtin.import_tasks: tasks/lvm-storage.yaml
 
