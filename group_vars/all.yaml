@@ -1,11 +1,8 @@
 ocp_version: stable-4.13
 arch: x86_64
 
-vm_disks:
-  - name: os
-    size: 120G
-  - name: pv
-    size: 100G
+disk_size_os: 120
+disk_size_pv: 100
 
 oc: /usr/local/bin/oc
 openshift_install: /usr/local/bin/openshift-install

@@ -118,8 +118,8 @@
           -n {{ cluster_name }} \
           --memory 16384 \
           --vcpus 9 \
-          --disk size=120 \
-          --disk size=100 \
+          --disk size={{ disk_size_os }} \
+          --disk size={{ disk_size_pv }} \
           --cdrom {{ vm_images }}/rhcos-live.iso \
           --os-variant rhel8.9 \
           --boot hd,cdrom \
@@ -200,7 +200,6 @@
 
     - name: Install GitOps operator
       ansible.builtin.import_tasks: tasks/gitops.yaml
-      tags: gitops
 
   handlers:
     - name: Clear dnsmasq cache
