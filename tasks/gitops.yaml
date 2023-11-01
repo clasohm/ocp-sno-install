@@ -22,7 +22,7 @@
 
 - name: Wait for ArgoCD to be deployed
   kubernetes.core.k8s_info:
-    api_version: argoproj.io/v1alpha1
+    api_version: argoproj.io/v1beta1
     kind: ArgoCD
     namespace: openshift-gitops
   register: argocd

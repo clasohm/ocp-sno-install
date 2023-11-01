@@ -1,4 +1,4 @@
-ocp_version: stable-4.13
+ocp_version: stable-4.14
 arch: x86_64
 
 disk_size_os: 120
