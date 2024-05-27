@@ -13,8 +13,8 @@
       - operators.coreos.com/openshift-gitops-operator.openshift-operators
   register: csv
   until: csv.resources[0].status.phase is defined and csv.resources[0].status.phase == 'Succeeded'
-  retries: 12
-  delay: 10
+  retries: 20
+  delay: 30
 
 - name: Create ArgoCD instance
   kubernetes.core.k8s:
