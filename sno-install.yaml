@@ -52,7 +52,6 @@
         dest: "{{ oc | dirname }}"
         include:
           - oc
-        creates: "{{ oc }}"
       become: true
 
     - name: Download OCP installer
@@ -62,7 +61,6 @@
         dest: "{{ openshift_install | dirname }}"
         include:
           - openshift-install
-        creates: "{{ openshift_install }}"
       become: true
 
     - name: Get RHCOS stream
@@ -116,7 +114,7 @@
       ansible.builtin.command: |
         virt-install \
           -n {{ cluster_name }} \
-          --memory 16384 \
+          --memory {{ vm_memory }} \
           --vcpus 9 \
           --disk size={{ disk_size_os }} \
           --disk size={{ disk_size_pv }} \

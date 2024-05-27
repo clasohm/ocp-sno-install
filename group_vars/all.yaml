@@ -1,8 +1,11 @@
-ocp_version: stable-4.14
+ocp_version: stable-4.15
 arch: x86_64
 
 disk_size_os: 120
 disk_size_pv: 100
+
+# VM memory in KBytes
+vm_memory: 16384
 
 oc: /usr/local/bin/oc
 openshift_install: /usr/local/bin/openshift-install
