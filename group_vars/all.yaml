@@ -4,8 +4,10 @@ arch: x86_64
 disk_size_os: 120
 disk_size_pv: 100
 
-# VM memory in KBytes
-vm_memory: 16384
+# VM memory in GBytes
+vm_memory_gb: 16
+
+vm_cpu_count: 9
 
 oc: /usr/local/bin/oc
 openshift_install: /usr/local/bin/openshift-install
