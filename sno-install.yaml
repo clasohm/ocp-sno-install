@@ -16,6 +16,13 @@
         that: cluster_name not in existing_vms.list_vms
         fail_msg: VM with name {{ cluster_name }} already exists. Delete it before running this playbook.
 
+    - name: Install packages
+      ansible.builtin.package:
+        name:
+          - virt-install
+          - python3-kubernetes
+      become: true
+
     - name: Set cluster_domain
       ansible.builtin.set_fact:
         cluster_domain: "{{ cluster_name }}.{{ base_domain }}"
@@ -114,8 +121,8 @@
       ansible.builtin.command: |
         virt-install \
           -n {{ cluster_name }} \
-          --memory {{ vm_memory }} \
-          --vcpus 9 \
+          --memory {{ vm_memory_gb | int * 1024 }} \
+          --vcpus {{ vm_cpu_count }} \
           --disk size={{ disk_size_os }} \
           --disk size={{ disk_size_pv }} \
           --cdrom {{ vm_images }}/rhcos-live.iso \
@@ -173,6 +180,11 @@
       until: install_wait.rc == 0
       retries: 5
       delay: 60
+
+    - name: Create .kube directory
+      ansible.builtin.file:
+        path: "{{ lookup('env', 'HOME') }}/.kube
+        state: directory
 
     - name: Copy kubeconfig
       ansible.builtin.copy:
